@@ -60,34 +60,32 @@
       <!-- TOP CONTROL & TIMER BAR -->
       <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex items-center justify-between gap-4">
         
-        <!-- COMPACT PIE CHART TIMER (SHRINKS TO WHITE) -->
-        <div class="flex items-center gap-4 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-          <div class="relative w-16 h-16 flex items-center justify-center">
-            <svg class="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
-              <!-- Outer border track -->
-              <circle cx="18" cy="18" r="15.9155" fill="#ffffff" stroke="#e2e8f0" stroke-width="2" />
-              <!-- Shrinking Blue Arc -->
+        <!-- ENLARGED PIE CHART TIMER -->
+        <div class="flex items-center gap-4 bg-slate-50 p-3 rounded-xl border border-slate-200">
+          <div class="relative w-24 h-24 flex items-center justify-center shrink-0">
+            <svg class="w-24 h-24 transform -rotate-90" viewBox="0 0 36 36">
+              <circle cx="18" cy="18" r="15.9155" fill="#ffffff" stroke="#e2e8f0" stroke-width="3" />
               <path id="timerPieArc" class="text-blue-600 transition-all duration-300" stroke-linecap="butt" stroke-width="4" stroke-dasharray="100, 100" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
             </svg>
-            <div id="timerDisplay" class="absolute font-black text-xs text-slate-800">
+            <div id="timerDisplay" class="absolute font-black text-base text-slate-800 tracking-tight">
               05:00
             </div>
           </div>
 
           <!-- Timer Controls -->
-          <div class="flex flex-col gap-1">
+          <div class="flex flex-col gap-1.5">
             <div class="flex items-center gap-1">
-              <button id="startPauseBtn" onclick="toggleTimer()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg transition min-w-[60px]">
+              <button id="startPauseBtn" onclick="toggleTimer()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg transition min-w-[65px] shadow-sm">
                 Start
               </button>
-              <button onclick="skipTimer()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs px-2 py-1.5 rounded-lg transition" title="Skip to 0">
+              <button onclick="skipTimer()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs px-2.5 py-1.5 rounded-lg transition" title="Skip to 0">
                 ⏭
               </button>
             </div>
             <div class="flex items-center gap-1 text-[11px]">
-              <button onclick="adjustTimer(-60)" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-0.5 rounded font-bold">-1m</button>
-              <button onclick="adjustTimer(60)" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-0.5 rounded font-bold">+1m</button>
-              <button onclick="resetTimer()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-0.5 rounded font-bold">↺</button>
+              <button onclick="adjustTimer(-60)" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded font-bold">-1m</button>
+              <button onclick="adjustTimer(60)" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded font-bold">+1m</button>
+              <button onclick="resetTimer()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded font-bold">↺</button>
             </div>
           </div>
         </div>
@@ -105,23 +103,26 @@
           </div>
         </div>
 
-        <!-- NEXT STATION BUTTON -->
-        <div>
-          <button id="nextStationBtn" onclick="advanceStation()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-5 py-3 rounded-xl transition shadow-md flex items-center gap-2 active:scale-95">
-            <span>✓</span> Ready for Next Station
+        <!-- STATION NAVIGATION BUTTONS (BACK & NEXT) -->
+        <div class="flex items-center gap-2">
+          <button id="prevStationBtn" onclick="previousStation()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm px-4 py-3 rounded-xl transition border border-slate-200 flex items-center gap-1 active:scale-95">
+            ← Previous Station
+          </button>
+          <button id="nextStationBtn" onclick="advanceStation()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-5 py-3 rounded-xl transition shadow-md flex items-center gap-1 active:scale-95">
+            Ready for Next Station →
           </button>
         </div>
 
       </div>
 
-      <!-- MAIN CENTER DISPLAY (DYNAMIC GRAPHIC FOCUS MATCHING SYMBOL) -->
-      <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex-1 flex flex-col justify-center items-center relative min-h-[200px]">
-        <div id="liveStationSymbolContainer" class="w-full flex justify-center items-center my-auto">
-          <!-- Dynamic graphic renders here -->
+      <!-- MAIN CENTER DISPLAY (DYNAMIC SYMBOLS + STUDENTS ASSIGNED UNDERNEATH) -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex-1 flex flex-col justify-center items-center relative min-h-[260px]">
+        <div id="liveStationSymbolContainer" class="w-full flex justify-center items-stretch my-auto">
+          <!-- Dynamic symbol columns render here -->
         </div>
       </div>
 
-      <!-- STUDENT ASSIGNMENT CARDS -->
+      <!-- STUDENT ASSIGNMENT SUMMARY CARDS -->
       <div class="bg-white rounded-2xl border border-slate-200 p-3 shadow-sm">
         <div id="liveStudentAvatarsGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
           <!-- Student Photo Cards render here -->
@@ -439,6 +440,14 @@
         document.getElementById('liveNextStationInfo').textContent = 'Final Station Rotation';
       }
 
+      // PREVIOUS BUTTON VISIBILITY
+      const prevBtn = document.getElementById('prevStationBtn');
+      if (state.activeSlotIndex === 0) {
+        prevBtn.classList.add('opacity-50', 'cursor-not-allowed');
+      } else {
+        prevBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+      }
+
       const symbolContainer = document.getElementById('liveStationSymbolContainer');
       if (activeSlot.isCheckIn) {
         symbolContainer.innerHTML = `
@@ -450,14 +459,46 @@
           </div>
         `;
       } else {
-        symbolContainer.innerHTML = `
-          <div class="flex flex-col items-center gap-2 py-2">
-            <div class="p-3 rounded-2xl bg-slate-50 border border-slate-100 shadow-inner flex items-center justify-center">
-              ${renderStationIcon('sym-teacher', 'w-10 h-10')}
+        // Group students by assigned symbol for current station
+        const activeAssignments = {};
+        state.students.forEach(student => {
+          const symId = student.schedule[activeSlot.id] || 'sym-ind';
+          if (!activeAssignments[symId]) activeAssignments[symId] = [];
+          activeAssignments[symId].push(student);
+        });
+
+        // Get symbols present in this slot
+        const usedSymbolIds = Object.keys(activeAssignments);
+        
+        let colsHTML = '';
+        usedSymbolIds.forEach(symId => {
+          const symObj = state.symbols.find(s => s.id === symId) || state.symbols[1];
+          const assignedStudents = activeAssignments[symId] || [];
+
+          let studentCards = '';
+          assignedStudents.forEach(st => {
+            studentCards += `
+              <div class="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-2xs w-full">
+                <img src="${st.avatar}" class="w-8 h-8 rounded-full object-cover border border-slate-200">
+                <span class="font-bold text-xs text-slate-800 truncate">${st.name}</span>
+              </div>
+            `;
+          });
+
+          colsHTML += `
+            <div class="flex-1 bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col items-center gap-3 max-w-xs shadow-2xs">
+              <div class="p-3 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-center">
+                ${renderSymbolGraphic(symObj, 'w-10 h-10')}
+              </div>
+              <span class="text-xs font-black text-slate-700 uppercase tracking-wide text-center">${symObj.name}</span>
+              <div class="w-full flex flex-col gap-2 mt-1">
+                ${studentCards}
+              </div>
             </div>
-            <span class="text-xs font-black text-slate-600 tracking-wide uppercase">Active Rotations</span>
-          </div>
-        `;
+          `;
+        });
+
+        symbolContainer.innerHTML = `<div class="flex flex-wrap justify-center items-stretch gap-6 w-full max-w-5xl">${colsHTML}</div>`;
       }
 
       const studentGrid = document.getElementById('liveStudentAvatarsGrid');
@@ -506,12 +547,7 @@
       return `<svg class="${sizeClass}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#64748b"/></svg>`;
     }
 
-    function renderStationIcon(symId, sizeClass) {
-      const sym = state.symbols.find(s => s.id === symId) || state.symbols[1];
-      return renderSymbolGraphic(sym, sizeClass);
-    }
-
-    // TIMER DISPLAY & SHRINKING PIE ARC TO WHITE
+    // TIMER DISPLAY & SHRINKING PIE ARC
     function updateTimerDisplay() {
       const mins = Math.floor(timerState.timeRemaining / 60);
       const secs = timerState.timeRemaining % 60;
@@ -572,6 +608,13 @@
         document.getElementById('startPauseBtn').textContent = 'Start';
       }
       playChime();
+    }
+
+    function previousStation() {
+      if (state.activeSlotIndex > 0) {
+        state.activeSlotIndex--;
+        renderLiveView();
+      }
     }
 
     function advanceStation() {
