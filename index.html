@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Classroom Visual Schedule & Station Timer</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Firebase App & Database SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
   <style>
     @keyframes pulse-ring {
       0% { transform: scale(0.95); opacity: 0.8; }
@@ -13,9 +16,6 @@
     }
     .timer-ring-active {
       animation: pulse-ring 2s infinite ease-in-out;
-    }
-    .ghost-card {
-      opacity: 0.4;
     }
   </style>
 </head>
@@ -29,12 +29,18 @@
       </div>
       <div>
         <h1 class="font-extrabold text-slate-800 text-lg leading-tight">Visual Classroom Schedule</h1>
-        <p class="text-xs text-slate-500 font-medium">Station Timer & Rotation Dashboard</p>
+        <p class="text-xs text-slate-500 font-medium">Station Timer & Cloud Rotation Dashboard</p>
       </div>
     </div>
 
-    <!-- Period Selector + Main Single Edit Toggle Button -->
-    <div class="flex items-center gap-4">
+    <!-- Controls & Firebase Sync Status -->
+    <div class="flex items-center gap-3">
+      <!-- Sync Indicator -->
+      <button onclick="openFirebaseModal()" id="cloudStatusBtn" class="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 transition">
+        <span id="cloudStatusDot" class="w-2 h-2 rounded-full bg-slate-400"></span>
+        <span id="cloudStatusText">Local Storage</span>
+      </button>
+
       <div class="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200 text-xs font-semibold">
         <label for="periodSelect" class="text-slate-500 px-2">Period:</label>
         <select id="periodSelect" class="bg-transparent font-bold text-slate-700 outline-none cursor-pointer pr-2">
@@ -43,7 +49,7 @@
         </select>
       </div>
 
-      <!-- Single Primary Toggle Button -->
+      <!-- Main Mode Toggle -->
       <button id="mainToggleEditBtn" onclick="toggleMode()" class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-4 py-2 rounded-xl transition shadow-sm active:scale-95">
         <span id="mainToggleEditIcon">⚙️</span>
         <span id="mainToggleEditText">Edit Schedule</span>
@@ -64,9 +70,7 @@
         <div class="flex items-center gap-4 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
           <div class="relative w-16 h-16 flex items-center justify-center">
             <svg class="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
-              <!-- Background circle -->
               <path class="text-slate-200" stroke-width="4" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-              <!-- Shrinking Blue Arc (Clockwise wipe to zero) -->
               <path id="timerPieArc" class="text-blue-600 transition-all duration-300" stroke-linecap="round" stroke-width="4" stroke-dasharray="100, 100" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
             </svg>
             <div id="timerDisplay" class="absolute font-black text-xs text-slate-800">
@@ -74,7 +78,7 @@
             </div>
           </div>
 
-          <!-- Timer Buttons -->
+          <!-- Timer Controls -->
           <div class="flex flex-col gap-1">
             <div class="flex items-center gap-1">
               <button id="startPauseBtn" onclick="toggleTimer()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg transition min-w-[60px]">
@@ -105,7 +109,7 @@
           </div>
         </div>
 
-        <!-- READY FOR NEXT STATION BUTTON -->
+        <!-- NEXT STATION BUTTON -->
         <div>
           <button id="nextStationBtn" onclick="advanceStation()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-5 py-3 rounded-xl transition shadow-md flex items-center gap-2 active:scale-95">
             <span>✓</span> Ready for Next Station
@@ -114,17 +118,14 @@
 
       </div>
 
-      <!-- MAIN CENTER DISPLAY (COMPACT STATION FOCUS GRAPHIC) -->
+      <!-- MAIN CENTER DISPLAY (GRAPHIC FOCUS) -->
       <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex-1 flex flex-col justify-center items-center relative min-h-[200px]">
-        
-        <!-- Station Visual Graphic Container -->
         <div id="liveStationSymbolContainer" class="w-full flex justify-center items-center my-auto">
-          <!-- Dynamically inserted graphic -->
+          <!-- Dynamic graphic renders here -->
         </div>
-
       </div>
 
-      <!-- STUDENT ASSIGNMENT CARDS ROW -->
+      <!-- STUDENT ASSIGNMENT CARDS -->
       <div class="bg-white rounded-2xl border border-slate-200 p-3 shadow-sm">
         <div id="liveStudentAvatarsGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
           <!-- Student Photo Cards render here -->
@@ -133,7 +134,7 @@
 
     </div>
 
-    <!-- ==================== VIEW 2: CLASS PERIOD & SCHEDULE EDIT VIEW ==================== -->
+    <!-- ==================== VIEW 2: SCHEDULE & SYMBOL EDIT VIEW ==================== -->
     <div id="editView" class="hidden flex-1 grid grid-cols-1 md:grid-cols-4 gap-6">
       
       <!-- LEFT SIDEBAR: SYMBOL PARKING LOT -->
@@ -156,11 +157,13 @@
           <button onclick="openStudentModal()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs py-2 rounded-xl transition">
             + Add New Student
           </button>
-          <p class="text-[10px] text-center text-slate-400">All changes save automatically to local browser storage.</p>
+          <button onclick="openFirebaseModal()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2 rounded-xl transition border border-slate-200 flex items-center justify-center gap-1">
+            <span>☁️</span> Cloud Sync Setup
+          </button>
         </div>
       </div>
 
-      <!-- RIGHT MAIN PANEL: VERTICAL STUDENT SCHEDULE STRIPS -->
+      <!-- RIGHT MAIN PANEL: SCHEDULE STRIPS -->
       <div class="md:col-span-3 bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col">
         <div class="flex items-center justify-between mb-4 border-b pb-3">
           <div>
@@ -174,7 +177,6 @@
           </div>
         </div>
 
-        <!-- SCHEDULE STRIPS GRID -->
         <div id="scheduleStripsContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 overflow-x-auto pb-2">
           <!-- Dynamic Vertical Student Cards -->
         </div>
@@ -183,6 +185,29 @@
     </div>
 
   </main>
+
+  <!-- MODAL: FIREBASE CLOUD SETUP -->
+  <div id="firebaseModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-5">
+      <h3 class="font-black text-slate-800 text-base mb-1">☁️ Firebase Sync Setup</h3>
+      <p class="text-xs text-slate-500 mb-4">Paste your Firebase Config JSON below to save schedules across all devices permanently.</p>
+      
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Firebase Config (JSON)</label>
+          <textarea id="firebaseConfigInput" rows="6" placeholder='{"apiKey": "...", "databaseURL": "...", "projectId": "..."}' class="w-full border rounded-lg p-2 font-mono text-[11px] outline-none focus:border-blue-500"></textarea>
+        </div>
+      </div>
+
+      <div class="flex justify-between items-center mt-5">
+        <button onclick="disconnectFirebase()" class="text-xs text-red-600 font-bold hover:underline">Clear / Reset Cloud</button>
+        <div class="flex gap-2">
+          <button onclick="closeFirebaseModal()" class="px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100 font-bold text-xs">Cancel</button>
+          <button onclick="saveFirebaseConfig()" class="px-4 py-1.5 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700">Connect Cloud</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- MODAL: ADD / EDIT SYMBOL -->
   <div id="symbolModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
@@ -248,9 +273,9 @@
     </div>
   </div>
 
-  <!-- JAVASCRIPT APP STATE & LOGIC -->
+  <!-- JAVASCRIPT STATE & FIREBASE ENGINE -->
   <script>
-    // INITIAL DEFAULT STATE
+    // DEFAULT DATA STRUCTURE
     const DEFAULT_TIME_SLOTS = [
       { id: 't1', stationNum: 1, label: 'Station #1', timeRange: '12:25 PM – 12:30 PM', durationSec: 300, isCheckIn: true },
       { id: 't2', stationNum: 2, label: 'Station #2', timeRange: '12:30 PM – 12:40 PM', durationSec: 600, isCheckIn: false },
@@ -304,7 +329,7 @@
       }
     ];
 
-    // APP STATE
+    // APPLICATION STATE
     let state = {
       isEditMode: false,
       activeSlotIndex: 0,
@@ -323,6 +348,73 @@
       isRunning: false
     };
 
+    // FIREBASE ENGINE VARIABLES
+    let firebaseDb = null;
+    let isCloudConnected = false;
+
+    // INIT FIREBASE CLOUD SYNC
+    function initFirebase() {
+      const savedConfig = localStorage.getItem('cvs_firebase_config');
+      if (savedConfig) {
+        try {
+          const configObj = JSON.parse(savedConfig);
+          if (!firebase.apps.length) {
+            firebase.initializeApp(configObj);
+          }
+          firebaseDb = firebase.database();
+          isCloudConnected = true;
+          updateCloudUI(true);
+
+          // Realtime listener for cross-device updates
+          firebaseDb.ref('classroomData').on('value', snapshot => {
+            const data = snapshot.val();
+            if (data) {
+              if (data.timeSlots) state.timeSlots = data.timeSlots;
+              if (data.symbols) state.symbols = data.symbols;
+              if (data.students) state.students = data.students;
+              saveLocalState();
+              if (state.isEditMode) renderEditView();
+              else renderLiveView();
+            }
+          });
+        } catch (err) {
+          console.error("Firebase config error:", err);
+          updateCloudUI(false, "Invalid Config");
+        }
+      } else {
+        updateCloudUI(false, "Local Only");
+      }
+    }
+
+    function updateCloudUI(connected, textOverride) {
+      const dot = document.getElementById('cloudStatusDot');
+      const text = document.getElementById('cloudStatusText');
+      if (connected) {
+        dot.className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
+        text.textContent = "Cloud Synced";
+      } else {
+        dot.className = "w-2 h-2 rounded-full bg-slate-400";
+        text.textContent = textOverride || "Local Storage";
+      }
+    }
+
+    function saveState() {
+      saveLocalState();
+      if (isCloudConnected && firebaseDb) {
+        firebaseDb.ref('classroomData').set({
+          timeSlots: state.timeSlots,
+          symbols: state.symbols,
+          students: state.students
+        });
+      }
+    }
+
+    function saveLocalState() {
+      localStorage.setItem('cvs_slots', JSON.stringify(state.timeSlots));
+      localStorage.setItem('cvs_symbols', JSON.stringify(state.symbols));
+      localStorage.setItem('cvs_students', JSON.stringify(state.students));
+    }
+
     // AUDIO CHIME
     function playChime() {
       try {
@@ -339,18 +431,11 @@
         osc.start();
         osc.stop(ctx.currentTime + 0.8);
       } catch (e) {
-        console.log('Audio chime auto-blocked or unsupported');
+        console.log('Audio chime auto-blocked');
       }
     }
 
-    // SAVE STATE TO LOCAL STORAGE
-    function saveState() {
-      localStorage.setItem('cvs_slots', JSON.stringify(state.timeSlots));
-      localStorage.setItem('cvs_symbols', JSON.stringify(state.symbols));
-      localStorage.setItem('cvs_students', JSON.stringify(state.students));
-    }
-
-    // MAIN TOGGLE EDIT / PRESENTATION MODE
+    // MODE TOGGLE
     function toggleMode() {
       state.isEditMode = !state.isEditMode;
       const liveView = document.getElementById('liveView');
@@ -379,15 +464,13 @@
       }
     }
 
-    // RENDER LIVE PRESENTATION VIEW
+    // LIVE VIEW RENDER
     function renderLiveView() {
       const activeSlot = state.timeSlots[state.activeSlotIndex];
       const nextSlot = state.timeSlots[state.activeSlotIndex + 1];
 
-      // Station Header Titles
       document.getElementById('liveStationNumHeader').textContent = `${activeSlot.label} (${activeSlot.timeRange})`;
       
-      // Determine Station Focus Label
       let focusTitle = 'CHECK-IN';
       if (!activeSlot.isCheckIn) {
         focusTitle = activeSlot.label.toUpperCase();
@@ -400,7 +483,6 @@
         document.getElementById('liveNextStationInfo').textContent = 'Final Station Rotation';
       }
 
-      // Render Central Station Focus Graphic (Compact Sizes)
       const symbolContainer = document.getElementById('liveStationSymbolContainer');
       if (activeSlot.isCheckIn) {
         symbolContainer.innerHTML = `
@@ -438,7 +520,6 @@
         `;
       }
 
-      // Render Student Cards with assigned station icons
       const studentGrid = document.getElementById('liveStudentAvatarsGrid');
       studentGrid.innerHTML = '';
 
@@ -462,13 +543,11 @@
         studentGrid.appendChild(card);
       });
 
-      // Reset timer for new slot
       timerState.totalDuration = activeSlot.durationSec;
       timerState.timeRemaining = activeSlot.durationSec;
       updateTimerDisplay();
     }
 
-    // HELPER: RENDER SYMBOL GRAPHIC
     function renderSymbolGraphic(symbol, sizeClass = 'w-5 h-5') {
       if (!symbol) return '';
       if (symbol.shape === 'circle') {
@@ -492,13 +571,12 @@
       return renderSymbolGraphic(sym, sizeClass);
     }
 
-    // TIMER LOGIC & PIE ARC SHRINKING
+    // TIMER DISPLAY & CLOCKWISE PIE ARC
     function updateTimerDisplay() {
       const mins = Math.floor(timerState.timeRemaining / 60);
       const secs = timerState.timeRemaining % 60;
       document.getElementById('timerDisplay').textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 
-      // Update pie chart stroke-dasharray (clockwise shrinking)
       const pieArc = document.getElementById('timerPieArc');
       const pct = Math.max(0, (timerState.timeRemaining / timerState.totalDuration) * 100);
       pieArc.setAttribute('stroke-dasharray', `${pct}, 100`);
@@ -566,7 +644,7 @@
       }
     }
 
-    // ==================== EDIT VIEW LOGIC ====================
+    // EDIT VIEW RENDERERS
     function renderEditView() {
       renderParkingLot();
       renderScheduleStrips();
@@ -670,6 +748,37 @@
         document.getElementById(inputTargetId).value = e.target.result;
       };
       reader.readAsDataURL(file);
+    }
+
+    // FIREBASE MODAL HANDLERS
+    function openFirebaseModal() {
+      const savedConfig = localStorage.getItem('cvs_firebase_config') || '';
+      document.getElementById('firebaseConfigInput').value = savedConfig;
+      document.getElementById('firebaseModal').classList.remove('hidden');
+    }
+
+    function closeFirebaseModal() {
+      document.getElementById('firebaseModal').classList.add('hidden');
+    }
+
+    function saveFirebaseConfig() {
+      const input = document.getElementById('firebaseConfigInput').value.trim();
+      if (!input) return alert('Please enter Firebase Config JSON');
+      try {
+        JSON.parse(input);
+        localStorage.setItem('cvs_firebase_config', input);
+        closeFirebaseModal();
+        initFirebase();
+      } catch (err) {
+        alert('Invalid JSON formatting. Please check your Firebase config snippet.');
+      }
+    }
+
+    function disconnectFirebase() {
+      localStorage.removeItem('cvs_firebase_config');
+      isCloudConnected = false;
+      closeFirebaseModal();
+      updateCloudUI(false, "Local Only");
     }
 
     // SYMBOL MODAL CONTROLS
@@ -804,8 +913,9 @@
       renderEditView();
     }
 
-    // INITIAL APP LOAD
+    // INITIAL APP BOOTSTRAP
     window.onload = () => {
+      initFirebase();
       renderLiveView();
     };
   </script>
