@@ -60,12 +60,14 @@
       <!-- TOP CONTROL & TIMER BAR -->
       <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex items-center justify-between gap-4">
         
-        <!-- COMPACT PIE CHART TIMER -->
+        <!-- COMPACT PIE CHART TIMER (SHRINKS TO WHITE) -->
         <div class="flex items-center gap-4 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
           <div class="relative w-16 h-16 flex items-center justify-center">
             <svg class="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
-              <path class="text-slate-200" stroke-width="4" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-              <path id="timerPieArc" class="text-blue-600 transition-all duration-300" stroke-linecap="round" stroke-width="4" stroke-dasharray="100, 100" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              <!-- Outer border track -->
+              <circle cx="18" cy="18" r="15.9155" fill="#ffffff" stroke="#e2e8f0" stroke-width="2" />
+              <!-- Shrinking Blue Arc -->
+              <path id="timerPieArc" class="text-blue-600 transition-all duration-300" stroke-linecap="butt" stroke-width="4" stroke-dasharray="100, 100" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
             </svg>
             <div id="timerDisplay" class="absolute font-black text-xs text-slate-800">
               05:00
@@ -112,7 +114,7 @@
 
       </div>
 
-      <!-- MAIN CENTER DISPLAY (GRAPHIC FOCUS) -->
+      <!-- MAIN CENTER DISPLAY (DYNAMIC GRAPHIC FOCUS MATCHING SYMBOL) -->
       <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex-1 flex flex-col justify-center items-center relative min-h-[200px]">
         <div id="liveStationSymbolContainer" class="w-full flex justify-center items-center my-auto">
           <!-- Dynamic graphic renders here -->
@@ -184,11 +186,12 @@
       <div class="space-y-3 text-xs">
         <div>
           <label class="block font-bold text-slate-700 mb-1">Symbol Name</label>
-          <input type="text" id="symbolNameInput" placeholder="e.g. Snack Time" class="w-full border rounded-lg p-2 outline-none focus:border-blue-500">
+          <input type="text" id="symbolNameInput" placeholder="e.g. Check-In" class="w-full border rounded-lg p-2 outline-none focus:border-blue-500">
         </div>
         <div>
           <label class="block font-bold text-slate-700 mb-1">Shape / Image</label>
           <select id="symbolShapeInput" class="w-full border rounded-lg p-2 outline-none focus:border-blue-500" onchange="toggleCustomImageInput()">
+            <option value="checkin">Check-In Checkmark</option>
             <option value="circle">Circle</option>
             <option value="triangle">Triangle</option>
             <option value="star">Star</option>
@@ -204,7 +207,7 @@
         </div>
         <div>
           <label class="block font-bold text-slate-700 mb-1">Accent Color</label>
-          <input type="color" id="symbolColorInput" value="#3b82f6" class="w-full h-8 border rounded-lg cursor-pointer">
+          <input type="color" id="symbolColorInput" value="#10b981" class="w-full h-8 border rounded-lg cursor-pointer">
         </div>
       </div>
       <div class="flex justify-end gap-2 mt-4">
@@ -253,7 +256,7 @@
     ];
 
     const DEFAULT_SYMBOLS = [
-      { id: 'sym-checkin', name: 'Check-In', shape: 'checkin', color: '#10b981', isSystem: true },
+      { id: 'sym-checkin', name: 'Check-In', shape: 'checkin', color: '#10b981', isSystem: false },
       { id: 'sym-ind', name: 'Individual Work', shape: 'circle', color: '#ef4444', isSystem: false },
       { id: 'sym-teacher', name: 'Teacher Table', shape: 'star', color: '#16a34a', isSystem: false },
       { id: 'sym-para', name: 'Para Station', shape: 'triangle', color: '#2563eb', isSystem: false }
@@ -426,10 +429,8 @@
 
       document.getElementById('liveStationNumHeader').textContent = `${activeSlot.label} (${activeSlot.timeRange})`;
       
-      let focusTitle = 'CHECK-IN';
-      if (!activeSlot.isCheckIn) {
-        focusTitle = activeSlot.label.toUpperCase();
-      }
+      const checkInSymbol = state.symbols.find(s => s.id === 'sym-checkin') || state.symbols[0];
+      let focusTitle = activeSlot.isCheckIn ? (checkInSymbol ? checkInSymbol.name.toUpperCase() : 'CHECK-IN') : activeSlot.label.toUpperCase();
       document.getElementById('liveStationTitle').textContent = focusTitle;
 
       if (nextSlot) {
@@ -441,27 +442,11 @@
       const symbolContainer = document.getElementById('liveStationSymbolContainer');
       if (activeSlot.isCheckIn) {
         symbolContainer.innerHTML = `
-          <div class="w-full max-w-xs border border-slate-300 rounded-xl overflow-hidden bg-white shadow-sm">
-            <div class="grid grid-cols-3 text-center text-[10px] font-black text-white py-1">
-              <div class="bg-emerald-500">Green Zone</div>
-              <div class="bg-amber-500">Yellow Zone</div>
-              <div class="bg-blue-500">Blue Zone</div>
+          <div class="flex flex-col items-center gap-3 py-4">
+            <div class="p-4 rounded-3xl bg-slate-50 border border-slate-100 shadow-inner flex items-center justify-center">
+              ${renderSymbolGraphic(checkInSymbol, 'w-24 h-24')}
             </div>
-            <div class="grid grid-cols-3 min-h-[60px] p-2 text-center text-xs">
-              <div class="bg-emerald-50 border-r border-slate-200 flex items-center justify-center gap-1 flex-wrap p-1">
-                <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
-                <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
-                <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
-              </div>
-              <div class="bg-amber-50 border-r border-slate-200 flex items-center justify-center gap-1 flex-wrap p-1">
-                <span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span>
-                <span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span>
-              </div>
-              <div class="bg-blue-50 flex items-center justify-center gap-1 flex-wrap p-1">
-                <span class="w-3 h-3 rounded-full bg-blue-500 inline-block"></span>
-                <span class="w-3 h-3 rounded-full bg-blue-500 inline-block"></span>
-              </div>
-            </div>
+            <span class="text-base font-black text-slate-700 tracking-wide uppercase">${checkInSymbol ? checkInSymbol.name : 'Check-In'}</span>
           </div>
         `;
       } else {
@@ -514,7 +499,7 @@
       } else if (symbol.shape === 'square') {
         return `<svg class="${sizeClass}" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3" fill="${symbol.color}"/></svg>`;
       } else if (symbol.shape === 'checkin') {
-        return `<span class="${sizeClass} rounded-full bg-emerald-500 inline-block flex items-center justify-center text-white text-[8px] font-bold">✓</span>`;
+        return `<span class="${sizeClass} rounded-full inline-block flex items-center justify-center text-white text-xs font-bold" style="background-color: ${symbol.color || '#10b981'}">✓</span>`;
       } else if (symbol.shape === 'custom' && symbol.imageUrl) {
         return `<img src="${symbol.imageUrl}" class="${sizeClass} object-cover rounded">`;
       }
@@ -526,7 +511,7 @@
       return renderSymbolGraphic(sym, sizeClass);
     }
 
-    // TIMER DISPLAY & CLOCKWISE PIE ARC
+    // TIMER DISPLAY & SHRINKING PIE ARC TO WHITE
     function updateTimerDisplay() {
       const mins = Math.floor(timerState.timeRemaining / 60);
       const secs = timerState.timeRemaining % 60;
@@ -620,9 +605,7 @@
             ${renderSymbolGraphic(symbol, 'w-5 h-5')}
             <span class="text-xs font-bold text-slate-700">${symbol.name}</span>
           </div>
-          ${!symbol.isSystem ? `
-            <button onclick="editSymbol('${symbol.id}')" class="text-[10px] text-slate-400 hover:text-blue-600 px-1">✏️</button>
-          ` : ''}
+          <button onclick="editSymbol('${symbol.id}')" class="text-[10px] text-slate-400 hover:text-blue-600 px-1">✏️</button>
         `;
         lot.appendChild(item);
       });
@@ -713,6 +696,19 @@
       document.getElementById('symbolShapeInput').value = 'circle';
       document.getElementById('symbolColorInput').value = '#3b82f6';
       document.getElementById('symbolImageInput').value = '';
+      toggleCustomImageInput();
+      document.getElementById('symbolModal').classList.remove('hidden');
+    }
+
+    function editSymbol(id) {
+      const sym = state.symbols.find(s => s.id === id);
+      if (!sym) return;
+      state.editingSymbolId = id;
+      document.getElementById('symbolModalTitle').textContent = 'Edit Symbol';
+      document.getElementById('symbolNameInput').value = sym.name;
+      document.getElementById('symbolShapeInput').value = sym.shape || 'circle';
+      document.getElementById('symbolColorInput').value = sym.color || '#3b82f6';
+      document.getElementById('symbolImageInput').value = sym.imageUrl || '';
       toggleCustomImageInput();
       document.getElementById('symbolModal').classList.remove('hidden');
     }
