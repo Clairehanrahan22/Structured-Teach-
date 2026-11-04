@@ -60,7 +60,7 @@
       <!-- TOP CONTROL & TIMER BAR -->
       <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex items-center justify-between gap-4">
         
-        <!-- ENLARGED PIE CHART TIMER -->
+        <!-- ENLARGED PIE CHART TIMER WITH DYNAMIC END TIME -->
         <div class="flex items-center gap-4 bg-slate-50 p-3 rounded-xl border border-slate-200">
           <div class="relative w-24 h-24 flex items-center justify-center shrink-0">
             <svg class="w-24 h-24 transform -rotate-90" viewBox="0 0 36 36">
@@ -86,6 +86,10 @@
               <button onclick="adjustTimer(-60)" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded font-bold">-1m</button>
               <button onclick="adjustTimer(60)" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded font-bold">+1m</button>
               <button onclick="resetTimer()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded font-bold">↺</button>
+            </div>
+            <!-- DYNAMIC TIMER END TIME -->
+            <div id="timerEndTimeDisplay" class="text-[11px] font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded text-center border border-blue-100">
+              Ends at --:--
             </div>
           </div>
         </div>
@@ -115,17 +119,10 @@
 
       </div>
 
-      <!-- MAIN CENTER DISPLAY (DYNAMIC SYMBOLS + STUDENTS ASSIGNED UNDERNEATH) -->
-      <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex-1 flex flex-col justify-center items-center relative min-h-[260px]">
+      <!-- MAIN CENTER DISPLAY (DYNAMIC SYMBOLS + LARGER STUDENT AVATARS) -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex-1 flex flex-col justify-center items-center relative min-h-[350px]">
         <div id="liveStationSymbolContainer" class="w-full flex justify-center items-stretch my-auto">
           <!-- Dynamic symbol columns render here -->
-        </div>
-      </div>
-
-      <!-- STUDENT ASSIGNMENT SUMMARY CARDS -->
-      <div class="bg-white rounded-2xl border border-slate-200 p-3 shadow-sm">
-        <div id="liveStudentAvatarsGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-          <!-- Student Photo Cards render here -->
         </div>
       </div>
 
@@ -450,16 +447,31 @@
 
       const symbolContainer = document.getElementById('liveStationSymbolContainer');
       if (activeSlot.isCheckIn) {
-        symbolContainer.innerHTML = `
-          <div class="flex flex-col items-center gap-3 py-4">
-            <div class="p-4 rounded-3xl bg-slate-50 border border-slate-100 shadow-inner flex items-center justify-center">
-              ${renderSymbolGraphic(checkInSymbol, 'w-24 h-24')}
+        let allStudentCards = '';
+        state.students.forEach(st => {
+          allStudentCards += `
+            <div class="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm w-full">
+              <img src="${st.avatar}" class="w-14 h-14 rounded-full object-cover border-2 border-slate-100 shadow-sm">
+              <div>
+                <span class="font-extrabold text-base text-slate-800 block">${st.name}</span>
+                ${st.note ? `<span class="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">${st.note}</span>` : ''}
+              </div>
             </div>
-            <span class="text-base font-black text-slate-700 tracking-wide uppercase">${checkInSymbol ? checkInSymbol.name : 'Check-In'}</span>
+          `;
+        });
+
+        symbolContainer.innerHTML = `
+          <div class="flex flex-col items-center gap-4 w-full max-w-xl">
+            <div class="p-4 rounded-3xl bg-slate-50 border border-slate-100 shadow-inner flex items-center justify-center">
+              ${renderSymbolGraphic(checkInSymbol, 'w-20 h-20')}
+            </div>
+            <span class="text-lg font-black text-slate-800 tracking-wide uppercase">${checkInSymbol ? checkInSymbol.name : 'Check-In'}</span>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full mt-2">
+              ${allStudentCards}
+            </div>
           </div>
         `;
       } else {
-        // Group students by assigned symbol for current station
         const activeAssignments = {};
         state.students.forEach(student => {
           const symId = student.schedule[activeSlot.id] || 'sym-ind';
@@ -467,7 +479,6 @@
           activeAssignments[symId].push(student);
         });
 
-        // Get symbols present in this slot
         const usedSymbolIds = Object.keys(activeAssignments);
         
         let colsHTML = '';
@@ -478,20 +489,23 @@
           let studentCards = '';
           assignedStudents.forEach(st => {
             studentCards += `
-              <div class="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-2xs w-full">
-                <img src="${st.avatar}" class="w-8 h-8 rounded-full object-cover border border-slate-200">
-                <span class="font-bold text-xs text-slate-800 truncate">${st.name}</span>
+              <div class="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-2xs w-full">
+                <img src="${st.avatar}" class="w-14 h-14 rounded-full object-cover border-2 border-slate-100 shadow-sm shrink-0">
+                <div class="overflow-hidden">
+                  <span class="font-extrabold text-base text-slate-800 block truncate">${st.name}</span>
+                  ${st.note ? `<span class="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded truncate inline-block">${st.note}</span>` : ''}
+                </div>
               </div>
             `;
           });
 
           colsHTML += `
-            <div class="flex-1 bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col items-center gap-3 max-w-xs shadow-2xs">
-              <div class="p-3 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-center">
-                ${renderSymbolGraphic(symObj, 'w-10 h-10')}
+            <div class="flex-1 bg-slate-50 border border-slate-200 rounded-2xl p-5 flex flex-col items-center gap-3 max-w-xs shadow-2xs">
+              <div class="p-3.5 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-center">
+                ${renderSymbolGraphic(symObj, 'w-12 h-12')}
               </div>
-              <span class="text-xs font-black text-slate-700 uppercase tracking-wide text-center">${symObj.name}</span>
-              <div class="w-full flex flex-col gap-2 mt-1">
+              <span class="text-sm font-black text-slate-800 uppercase tracking-wide text-center">${symObj.name}</span>
+              <div class="w-full flex flex-col gap-2.5 mt-1">
                 ${studentCards}
               </div>
             </div>
@@ -500,29 +514,6 @@
 
         symbolContainer.innerHTML = `<div class="flex flex-wrap justify-center items-stretch gap-6 w-full max-w-5xl">${colsHTML}</div>`;
       }
-
-      const studentGrid = document.getElementById('liveStudentAvatarsGrid');
-      studentGrid.innerHTML = '';
-
-      state.students.forEach(student => {
-        const assignedSymId = student.schedule[activeSlot.id] || 'sym-ind';
-        const symbolObj = state.symbols.find(s => s.id === assignedSymId) || state.symbols[1];
-
-        const card = document.createElement('div');
-        card.className = "bg-slate-50 rounded-xl p-2 border border-slate-200 flex items-center gap-2.5 shadow-sm hover:border-blue-300 transition";
-        card.innerHTML = `
-          <img src="${student.avatar}" alt="${student.name}" class="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm shrink-0">
-          <div class="overflow-hidden">
-            <h4 class="font-bold text-slate-800 text-xs truncate">${student.name}</h4>
-            <div class="flex items-center gap-1 mt-0.5">
-              ${renderSymbolGraphic(symbolObj, 'w-3.5 h-3.5')}
-              <span class="text-[11px] font-semibold text-slate-600 truncate">${symbolObj.name}</span>
-            </div>
-            ${student.note ? `<p class="text-[9px] text-amber-700 bg-amber-50 font-medium px-1 rounded inline-block mt-0.5 truncate">${student.note}</p>` : ''}
-          </div>
-        `;
-        studentGrid.appendChild(card);
-      });
 
       timerState.totalDuration = activeSlot.durationSec;
       timerState.timeRemaining = activeSlot.durationSec;
@@ -547,7 +538,7 @@
       return `<svg class="${sizeClass}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#64748b"/></svg>`;
     }
 
-    // TIMER DISPLAY & SHRINKING PIE ARC
+    // TIMER DISPLAY & DYNAMIC END TIME CALCULATION
     function updateTimerDisplay() {
       const mins = Math.floor(timerState.timeRemaining / 60);
       const secs = timerState.timeRemaining % 60;
@@ -556,6 +547,12 @@
       const pieArc = document.getElementById('timerPieArc');
       const pct = Math.max(0, (timerState.timeRemaining / timerState.totalDuration) * 100);
       pieArc.setAttribute('stroke-dasharray', `${pct}, 100`);
+
+      // CALCULATE END TIME BASED ON CURRENT TIME
+      const now = new Date();
+      const endTime = new Date(now.getTime() + timerState.timeRemaining * 1000);
+      const formattedEndTime = endTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      document.getElementById('timerEndTimeDisplay').textContent = `Ends at ${formattedEndTime}`;
     }
 
     function toggleTimer() {
