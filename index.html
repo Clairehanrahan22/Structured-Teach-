@@ -225,4 +225,623 @@
         </div>
         <div>
           <label class="block font-bold text-slate-700 mb-1">Avatar Image URL</label>
-          <input type="text" id="student
+          <input type="text" id="studentAvatarInput" placeholder="https://..." class="w-full border rounded-lg p-2 outline-none focus:border-blue-500 mb-2">
+          <label class="block font-bold text-slate-700 mb-1">Or Upload Student Photo</label>
+          <input type="file" id="studentFileInput" accept="image/*" class="w-full text-xs text-slate-500" onchange="handleImageFileUpload(event, 'studentAvatarInput')">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Individual Note (Optional)</label>
+          <input type="text" id="studentNoteInput" placeholder="e.g. Leaves ~12:45 PM" class="w-full border rounded-lg p-2 outline-none focus:border-blue-500">
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 mt-4">
+        <button onclick="closeStudentModal()" class="px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100 font-bold text-xs">Cancel</button>
+        <button onclick="saveStudent()" class="px-4 py-1.5 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700">Save Student</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT STATE & AUTOMATIC FIREBASE SYNC -->
+  <script>
+    // DEFAULT DATA STRUCTURE
+    const DEFAULT_TIME_SLOTS = [
+      { id: 't1', stationNum: 1, label: 'Station #1', timeRange: '12:25 PM – 12:30 PM', durationSec: 300, isCheckIn: true },
+      { id: 't2', stationNum: 2, label: 'Station #2', timeRange: '12:30 PM – 12:40 PM', durationSec: 600, isCheckIn: false },
+      { id: 't3', stationNum: 3, label: 'Station #3', timeRange: '12:42 PM – 12:52 PM', durationSec: 600, isCheckIn: false },
+      { id: 't4', stationNum: 4, label: 'Station #4', timeRange: '12:54 PM – 1:04 PM', durationSec: 600, isCheckIn: false },
+      { id: 't5', stationNum: 5, label: 'Station #5', timeRange: '1:06 PM – 1:16 PM', durationSec: 600, isCheckIn: false }
+    ];
+
+    const DEFAULT_SYMBOLS = [
+      { id: 'sym-checkin', name: 'Check-In', shape: 'checkin', color: '#10b981', isSystem: true },
+      { id: 'sym-ind', name: 'Individual Work', shape: 'circle', color: '#ef4444', isSystem: false },
+      { id: 'sym-teacher', name: 'Teacher Table', shape: 'star', color: '#16a34a', isSystem: false },
+      { id: 'sym-para', name: 'Para Station', shape: 'triangle', color: '#2563eb', isSystem: false }
+    ];
+
+    const DEFAULT_STUDENTS = [
+      {
+        id: 'st-ethan',
+        name: 'Ethan',
+        note: 'Leaves ~12:45 PM',
+        avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80',
+        schedule: { 't1': 'sym-checkin', 't2': 'sym-ind', 't3': 'sym-teacher', 't4': 'sym-ind', 't5': 'sym-ind' }
+      },
+      {
+        id: 'st-brennan',
+        name: 'Brennan',
+        note: '',
+        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+        schedule: { 't1': 'sym-checkin', 't2': 'sym-teacher', 't3': 'sym-ind', 't4': 'sym-ind', 't5': 'sym-para' }
+      },
+      {
+        id: 'st-ashton',
+        name: 'Ashton',
+        note: '',
+        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+        schedule: { 't1': 'sym-checkin', 't2': 'sym-ind', 't3': 'sym-para', 't4': 'sym-ind', 't5': 'sym-teacher' }
+      },
+      {
+        id: 'st-owen',
+        name: 'Owen',
+        note: '',
+        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+        schedule: { 't1': 'sym-checkin', 't2': 'sym-ind', 't3': 'sym-ind', 't4': 'sym-para', 't5': 'sym-teacher' }
+      },
+      {
+        id: 'st-milo',
+        name: 'Milo',
+        note: '',
+        avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
+        schedule: { 't1': 'sym-checkin', 't2': 'sym-para', 't3': 'sym-ind', 't4': 'sym-teacher', 't5': 'sym-ind' }
+      }
+    ];
+
+    // APPLICATION STATE
+    let state = {
+      isEditMode: false,
+      activeSlotIndex: 0,
+      timeSlots: JSON.parse(localStorage.getItem('cvs_slots')) || DEFAULT_TIME_SLOTS,
+      symbols: JSON.parse(localStorage.getItem('cvs_symbols')) || DEFAULT_SYMBOLS,
+      students: JSON.parse(localStorage.getItem('cvs_students')) || DEFAULT_STUDENTS,
+      editingSymbolId: null,
+      editingStudentId: null
+    };
+
+    // TIMER STATE
+    let timerState = {
+      interval: null,
+      timeRemaining: state.timeSlots[0].durationSec,
+      totalDuration: state.timeSlots[0].durationSec,
+      isRunning: false
+    };
+
+    // AUTOMATIC FIREBASE SYNC ENGINE
+    let firebaseDb = null;
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyB_2cEub_V82SmTKx6uyIw0xF1SS9Hy-aM",
+      authDomain: "centerbase-classroom.firebaseapp.com",
+      databaseURL: "https://centerbase-classroom-default-rtdb.firebaseio.com",
+      projectId: "centerbase-classroom",
+      storageBucket: "centerbase-classroom.firebasestorage.app",
+      messagingSenderId: "157816785199",
+      appId: "1:157816785199:web:d6ed97be58ca477894f9da"
+    };
+
+    function initFirebase() {
+      try {
+        if (!firebase.apps.length) {
+          firebase.initializeApp(firebaseConfig);
+        }
+        firebaseDb = firebase.database();
+
+        // Listen for real-time changes across all connected devices
+        firebaseDb.ref('classroomData').on('value', snapshot => {
+          const data = snapshot.val();
+          if (data) {
+            if (data.timeSlots) state.timeSlots = data.timeSlots;
+            if (data.symbols) state.symbols = data.symbols;
+            if (data.students) state.students = data.students;
+            saveLocalState();
+            if (state.isEditMode) renderEditView();
+            else renderLiveView();
+          }
+        });
+      } catch (err) {
+        console.error("Firebase initialization error:", err);
+      }
+    }
+
+    function saveState() {
+      saveLocalState();
+      if (firebaseDb) {
+        firebaseDb.ref('classroomData').set({
+          timeSlots: state.timeSlots,
+          symbols: state.symbols,
+          students: state.students
+        });
+      }
+    }
+
+    function saveLocalState() {
+      localStorage.setItem('cvs_slots', JSON.stringify(state.timeSlots));
+      localStorage.setItem('cvs_symbols', JSON.stringify(state.symbols));
+      localStorage.setItem('cvs_students', JSON.stringify(state.students));
+    }
+
+    // AUDIO CHIME
+    function playChime() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.5);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.8);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.8);
+      } catch (e) {
+        console.log('Audio chime auto-blocked');
+      }
+    }
+
+    // MODE TOGGLE
+    function toggleMode() {
+      state.isEditMode = !state.isEditMode;
+      const liveView = document.getElementById('liveView');
+      const editView = document.getElementById('editView');
+      const icon = document.getElementById('mainToggleEditIcon');
+      const text = document.getElementById('mainToggleEditText');
+      const btn = document.getElementById('mainToggleEditBtn');
+
+      if (state.isEditMode) {
+        liveView.classList.add('hidden');
+        editView.classList.remove('hidden');
+        icon.textContent = '✓';
+        text.textContent = 'Done Editing';
+        btn.classList.replace('bg-blue-600', 'bg-emerald-600');
+        btn.classList.replace('hover:bg-blue-700', 'hover:bg-emerald-700');
+        renderEditView();
+      } else {
+        saveState();
+        editView.classList.add('hidden');
+        liveView.classList.remove('hidden');
+        icon.textContent = '⚙️';
+        text.textContent = 'Edit Schedule';
+        btn.classList.replace('bg-emerald-600', 'bg-blue-600');
+        btn.classList.replace('hover:bg-emerald-700', 'hover:bg-blue-700');
+        renderLiveView();
+      }
+    }
+
+    // LIVE VIEW RENDER
+    function renderLiveView() {
+      const activeSlot = state.timeSlots[state.activeSlotIndex];
+      const nextSlot = state.timeSlots[state.activeSlotIndex + 1];
+
+      document.getElementById('liveStationNumHeader').textContent = `${activeSlot.label} (${activeSlot.timeRange})`;
+      
+      let focusTitle = 'CHECK-IN';
+      if (!activeSlot.isCheckIn) {
+        focusTitle = activeSlot.label.toUpperCase();
+      }
+      document.getElementById('liveStationTitle').textContent = focusTitle;
+
+      if (nextSlot) {
+        document.getElementById('liveNextStationInfo').textContent = `Next: ${nextSlot.label} (${nextSlot.timeRange})`;
+      } else {
+        document.getElementById('liveNextStationInfo').textContent = 'Final Station Rotation';
+      }
+
+      const symbolContainer = document.getElementById('liveStationSymbolContainer');
+      if (activeSlot.isCheckIn) {
+        symbolContainer.innerHTML = `
+          <div class="w-full max-w-xs border border-slate-300 rounded-xl overflow-hidden bg-white shadow-sm">
+            <div class="grid grid-cols-3 text-center text-[10px] font-black text-white py-1">
+              <div class="bg-emerald-500">Green Zone</div>
+              <div class="bg-amber-500">Yellow Zone</div>
+              <div class="bg-blue-500">Blue Zone</div>
+            </div>
+            <div class="grid grid-cols-3 min-h-[60px] p-2 text-center text-xs">
+              <div class="bg-emerald-50 border-r border-slate-200 flex items-center justify-center gap-1 flex-wrap p-1">
+                <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
+                <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
+                <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
+              </div>
+              <div class="bg-amber-50 border-r border-slate-200 flex items-center justify-center gap-1 flex-wrap p-1">
+                <span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span>
+                <span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span>
+              </div>
+              <div class="bg-blue-50 flex items-center justify-center gap-1 flex-wrap p-1">
+                <span class="w-3 h-3 rounded-full bg-blue-500 inline-block"></span>
+                <span class="w-3 h-3 rounded-full bg-blue-500 inline-block"></span>
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        symbolContainer.innerHTML = `
+          <div class="flex flex-col items-center gap-2 py-2">
+            <div class="p-3 rounded-2xl bg-slate-50 border border-slate-100 shadow-inner flex items-center justify-center">
+              ${renderStationIcon('sym-teacher', 'w-10 h-10')}
+            </div>
+            <span class="text-xs font-black text-slate-600 tracking-wide uppercase">Active Rotations</span>
+          </div>
+        `;
+      }
+
+      const studentGrid = document.getElementById('liveStudentAvatarsGrid');
+      studentGrid.innerHTML = '';
+
+      state.students.forEach(student => {
+        const assignedSymId = student.schedule[activeSlot.id] || 'sym-ind';
+        const symbolObj = state.symbols.find(s => s.id === assignedSymId) || state.symbols[1];
+
+        const card = document.createElement('div');
+        card.className = "bg-slate-50 rounded-xl p-2 border border-slate-200 flex items-center gap-2.5 shadow-sm hover:border-blue-300 transition";
+        card.innerHTML = `
+          <img src="${student.avatar}" alt="${student.name}" class="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm shrink-0">
+          <div class="overflow-hidden">
+            <h4 class="font-bold text-slate-800 text-xs truncate">${student.name}</h4>
+            <div class="flex items-center gap-1 mt-0.5">
+              ${renderSymbolGraphic(symbolObj, 'w-3.5 h-3.5')}
+              <span class="text-[11px] font-semibold text-slate-600 truncate">${symbolObj.name}</span>
+            </div>
+            ${student.note ? `<p class="text-[9px] text-amber-700 bg-amber-50 font-medium px-1 rounded inline-block mt-0.5 truncate">${student.note}</p>` : ''}
+          </div>
+        `;
+        studentGrid.appendChild(card);
+      });
+
+      timerState.totalDuration = activeSlot.durationSec;
+      timerState.timeRemaining = activeSlot.durationSec;
+      updateTimerDisplay();
+    }
+
+    function renderSymbolGraphic(symbol, sizeClass = 'w-5 h-5') {
+      if (!symbol) return '';
+      if (symbol.shape === 'circle') {
+        return `<svg class="${sizeClass}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="${symbol.color}"/></svg>`;
+      } else if (symbol.shape === 'triangle') {
+        return `<svg class="${sizeClass}" viewBox="0 0 24 24"><polygon points="12,2 22,21 2,21" fill="${symbol.color}"/></svg>`;
+      } else if (symbol.shape === 'star') {
+        return `<svg class="${sizeClass}" viewBox="0 0 24 24"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="${symbol.color}"/></svg>`;
+      } else if (symbol.shape === 'square') {
+        return `<svg class="${sizeClass}" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3" fill="${symbol.color}"/></svg>`;
+      } else if (symbol.shape === 'checkin') {
+        return `<span class="${sizeClass} rounded-full bg-emerald-500 inline-block flex items-center justify-center text-white text-[8px] font-bold">✓</span>`;
+      } else if (symbol.shape === 'custom' && symbol.imageUrl) {
+        return `<img src="${symbol.imageUrl}" class="${sizeClass} object-cover rounded">`;
+      }
+      return `<svg class="${sizeClass}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#64748b"/></svg>`;
+    }
+
+    function renderStationIcon(symId, sizeClass) {
+      const sym = state.symbols.find(s => s.id === symId) || state.symbols[1];
+      return renderSymbolGraphic(sym, sizeClass);
+    }
+
+    // TIMER DISPLAY & CLOCKWISE PIE ARC
+    function updateTimerDisplay() {
+      const mins = Math.floor(timerState.timeRemaining / 60);
+      const secs = timerState.timeRemaining % 60;
+      document.getElementById('timerDisplay').textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+      const pieArc = document.getElementById('timerPieArc');
+      const pct = Math.max(0, (timerState.timeRemaining / timerState.totalDuration) * 100);
+      pieArc.setAttribute('stroke-dasharray', `${pct}, 100`);
+    }
+
+    function toggleTimer() {
+      const btn = document.getElementById('startPauseBtn');
+      if (timerState.isRunning) {
+        clearInterval(timerState.interval);
+        timerState.isRunning = false;
+        btn.textContent = 'Start';
+        btn.classList.replace('bg-amber-600', 'bg-blue-600');
+      } else {
+        timerState.isRunning = true;
+        btn.textContent = 'Pause';
+        btn.classList.replace('bg-blue-600', 'bg-amber-600');
+        timerState.interval = setInterval(() => {
+          if (timerState.timeRemaining > 0) {
+            timerState.timeRemaining--;
+            updateTimerDisplay();
+          } else {
+            clearInterval(timerState.interval);
+            timerState.isRunning = false;
+            btn.textContent = 'Start';
+            btn.classList.replace('bg-amber-600', 'bg-blue-600');
+            playChime();
+          }
+        }, 1000);
+      }
+    }
+
+    function adjustTimer(sec) {
+      timerState.timeRemaining = Math.max(0, timerState.timeRemaining + sec);
+      updateTimerDisplay();
+    }
+
+    function resetTimer() {
+      if (timerState.isRunning) {
+        clearInterval(timerState.interval);
+        timerState.isRunning = false;
+        document.getElementById('startPauseBtn').textContent = 'Start';
+      }
+      timerState.timeRemaining = timerState.totalDuration;
+      updateTimerDisplay();
+    }
+
+    function skipTimer() {
+      timerState.timeRemaining = 0;
+      updateTimerDisplay();
+      if (timerState.isRunning) {
+        clearInterval(timerState.interval);
+        timerState.isRunning = false;
+        document.getElementById('startPauseBtn').textContent = 'Start';
+      }
+      playChime();
+    }
+
+    function advanceStation() {
+      if (state.activeSlotIndex < state.timeSlots.length - 1) {
+        state.activeSlotIndex++;
+        renderLiveView();
+      } else {
+        state.activeSlotIndex = 0;
+        renderLiveView();
+      }
+    }
+
+    // EDIT VIEW RENDERERS
+    function renderEditView() {
+      renderParkingLot();
+      renderScheduleStrips();
+    }
+
+    function renderParkingLot() {
+      const lot = document.getElementById('symbolParkingLot');
+      lot.innerHTML = '';
+
+      state.symbols.forEach(symbol => {
+        const item = document.createElement('div');
+        item.className = "p-2 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between cursor-grab active:cursor-grabbing hover:border-blue-400 transition";
+        item.draggable = true;
+        item.ondragstart = (e) => e.dataTransfer.setData('text/plain', symbol.id);
+
+        item.innerHTML = `
+          <div class="flex items-center gap-2">
+            ${renderSymbolGraphic(symbol, 'w-5 h-5')}
+            <span class="text-xs font-bold text-slate-700">${symbol.name}</span>
+          </div>
+          ${!symbol.isSystem ? `
+            <button onclick="editSymbol('${symbol.id}')" class="text-[10px] text-slate-400 hover:text-blue-600 px-1">✏️</button>
+          ` : ''}
+        `;
+        lot.appendChild(item);
+      });
+    }
+
+    function renderScheduleStrips() {
+      const container = document.getElementById('scheduleStripsContainer');
+      container.innerHTML = '';
+
+      state.students.forEach(student => {
+        const strip = document.createElement('div');
+        strip.className = "bg-slate-50 border border-slate-200 rounded-xl p-2.5 flex flex-col gap-2 shrink-0 w-full min-w-[180px]";
+        
+        let stepsHTML = '';
+        state.timeSlots.forEach(slot => {
+          const assignedSymId = student.schedule[slot.id] || 'sym-ind';
+          const symbolObj = state.symbols.find(s => s.id === assignedSymId) || state.symbols[1];
+
+          stepsHTML += `
+            <div class="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-2xs"
+                 ondragover="event.preventDefault()" 
+                 ondrop="handleDropOnStep(event, '${student.id}', '${slot.id}')">
+              <div class="bg-slate-100 text-[10px] font-bold text-slate-600 text-center py-1 border-b border-slate-200">
+                ${slot.timeRange}
+              </div>
+              <div class="p-2 flex flex-col items-center gap-1">
+                ${renderSymbolGraphic(symbolObj, 'w-6 h-6')}
+                
+                <select class="text-[11px] font-bold text-slate-700 bg-transparent text-center outline-none cursor-pointer w-full"
+                        onchange="assignSymbolToStudent('${student.id}', '${slot.id}', this.value)">
+                  ${state.symbols.map(s => `<option value="${s.id}" ${s.id === assignedSymId ? 'selected' : ''}>${s.name}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+          `;
+        });
+
+        strip.innerHTML = `
+          <div class="flex items-center justify-between border-b pb-2">
+            <div class="flex items-center gap-1.5">
+              <img src="${student.avatar}" class="w-6 h-6 rounded-full object-cover">
+              <span class="font-black text-xs text-slate-800">${student.name}</span>
+            </div>
+            <button onclick="editStudent('${student.id}')" class="text-[10px] text-slate-400 hover:text-blue-600">✏️</button>
+          </div>
+          ${student.note ? `<div class="text-[10px] font-bold text-amber-700 bg-amber-50 p-1 rounded text-center">${student.note}</div>` : ''}
+          <div class="flex flex-col gap-2">
+            ${stepsHTML}
+          </div>
+        `;
+
+        container.appendChild(strip);
+      });
+    }
+
+    function handleDropOnStep(e, studentId, slotId) {
+      e.preventDefault();
+      const symbolId = e.dataTransfer.getData('text/plain');
+      if (symbolId) {
+        assignSymbolToStudent(studentId, slotId, symbolId);
+      }
+    }
+
+    function assignSymbolToStudent(studentId, slotId, symbolId) {
+      const student = state.students.find(s => s.id === studentId);
+      if (student) {
+        student.schedule[slotId] = symbolId;
+        saveState();
+        renderScheduleStrips();
+      }
+    }
+
+    function handleImageFileUpload(event, inputTargetId) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        document.getElementById(inputTargetId).value = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // SYMBOL MODAL CONTROLS
+    function openSymbolModal() {
+      state.editingSymbolId = null;
+      document.getElementById('symbolModalTitle').textContent = 'Add Custom Symbol';
+      document.getElementById('symbolNameInput').value = '';
+      document.getElementById('symbolShapeInput').value = 'circle';
+      document.getElementById('symbolColorInput').value = '#3b82f6';
+      document.getElementById('symbolImageInput').value = '';
+      toggleCustomImageInput();
+      document.getElementById('symbolModal').classList.remove('hidden');
+    }
+
+    function closeSymbolModal() {
+      document.getElementById('symbolModal').classList.add('hidden');
+    }
+
+    function toggleCustomImageInput() {
+      const shape = document.getElementById('symbolShapeInput').value;
+      const group = document.getElementById('customImageGroup');
+      if (shape === 'custom') {
+        group.classList.remove('hidden');
+      } else {
+        group.classList.add('hidden');
+      }
+    }
+
+    function saveSymbol() {
+      const name = document.getElementById('symbolNameInput').value.trim();
+      const shape = document.getElementById('symbolShapeInput').value;
+      const color = document.getElementById('symbolColorInput').value;
+      const imageUrl = document.getElementById('symbolImageInput').value.trim();
+
+      if (!name) return alert('Please enter a symbol name');
+
+      if (state.editingSymbolId) {
+        const sym = state.symbols.find(s => s.id === state.editingSymbolId);
+        if (sym) {
+          sym.name = name;
+          sym.shape = shape;
+          sym.color = color;
+          sym.imageUrl = imageUrl;
+        }
+      } else {
+        const newSym = {
+          id: 'sym-' + Date.now(),
+          name,
+          shape,
+          color,
+          imageUrl,
+          isSystem: false
+        };
+        state.symbols.push(newSym);
+      }
+
+      saveState();
+      closeSymbolModal();
+      renderEditView();
+    }
+
+    // STUDENT MODAL CONTROLS
+    function openStudentModal() {
+      state.editingStudentId = null;
+      document.getElementById('studentModalTitle').textContent = 'Add Student';
+      document.getElementById('studentNameInput').value = '';
+      document.getElementById('studentAvatarInput').value = '';
+      document.getElementById('studentNoteInput').value = '';
+      document.getElementById('studentModal').classList.remove('hidden');
+    }
+
+    function editStudent(id) {
+      const student = state.students.find(s => s.id === id);
+      if (!student) return;
+      state.editingStudentId = id;
+      document.getElementById('studentModalTitle').textContent = 'Edit Student';
+      document.getElementById('studentNameInput').value = student.name;
+      document.getElementById('studentAvatarInput').value = student.avatar;
+      document.getElementById('studentNoteInput').value = student.note || '';
+      document.getElementById('studentModal').classList.remove('hidden');
+    }
+
+    function closeStudentModal() {
+      document.getElementById('studentModal').classList.add('hidden');
+    }
+
+    function saveStudent() {
+      const name = document.getElementById('studentNameInput').value.trim();
+      const avatar = document.getElementById('studentAvatarInput').value.trim() || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80';
+      const note = document.getElementById('studentNoteInput').value.trim();
+
+      if (!name) return alert('Please enter student name');
+
+      if (state.editingStudentId) {
+        const st = state.students.find(s => s.id === state.editingStudentId);
+        if (st) {
+          st.name = name;
+          st.avatar = avatar;
+          st.note = note;
+        }
+      } else {
+        const newSt = {
+          id: 'st-' + Date.now(),
+          name,
+          avatar,
+          note,
+          schedule: {}
+        };
+        state.timeSlots.forEach(slot => {
+          newSt.schedule[slot.id] = 'sym-ind';
+        });
+        state.students.push(newSt);
+      }
+
+      saveState();
+      closeStudentModal();
+      renderEditView();
+    }
+
+    function addNewTimeBlock() {
+      const nextNum = state.timeSlots.length + 1;
+      const newSlot = {
+        id: 't' + Date.now(),
+        stationNum: nextNum,
+        label: `Station #${nextNum}`,
+        timeRange: '1:18 PM – 1:28 PM',
+        durationSec: 600,
+        isCheckIn: false
+      };
+      state.timeSlots.push(newSlot);
+      saveState();
+      renderEditView();
+    }
+
+    // INITIAL APP BOOTSTRAP
+    window.onload = () => {
+      initFirebase();
+      renderLiveView();
+    };
+  </script>
+</body>
+</html>
