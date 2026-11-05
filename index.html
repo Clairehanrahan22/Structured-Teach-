@@ -140,12 +140,12 @@
       <!-- 50/50 SPLIT SCREEN CONTAINER -->
       <div class="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch min-h-[450px]">
         
-        <!-- LEFT 1/2: LARGE VISUAL TIMER (CONIC GRADIENT DRIVEN) -->
+        <!-- LEFT 1/2: LARGE VISUAL TIMER (CONIC GRADIENT DRIVEN, STRICT CLOCKWISE SHRINK FROM 12:00) -->
         <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col items-center justify-center relative">
           
           <div class="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center my-auto">
             <!-- Outer Ring Element rendered with CSS Conic Gradient -->
-            <div id="timerConicRing" class="w-full h-full rounded-full transition-all duration-300 p-3 shadow-inner" style="background: conic-gradient(#f1f5f9 0deg, #2563eb 0deg 360deg);">
+            <div id="timerConicRing" class="w-full h-full rounded-full transition-all duration-300 p-3 shadow-inner" style="background: conic-gradient(#f1f5f9 0deg 0deg, #2563eb 0deg 360deg);">
               <!-- Inner White Mask to leave a clean ring border -->
               <div class="w-full h-full bg-white rounded-full flex items-center justify-center shadow-xs">
                 <div id="timerDisplay" class="font-black text-4xl sm:text-5xl text-slate-900 tracking-tight">
@@ -731,19 +731,19 @@
       return `<svg class="${sizeClass}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#64748b"/></svg>`;
     }
 
-    // TIMER DISPLAY DRIVEN BY CSS CONIC GRADIENT (STRICT 12:00 CLOCKWISE SHRINK)
+    // TIMER DISPLAY DRIVEN BY CSS CONIC GRADIENT (STRICT CLOCKWISE SHRINK FROM 12:00)
     function updateTimerDisplay() {
       const mins = Math.floor(timerState.timeRemaining / 60);
       const secs = timerState.timeRemaining % 60;
       document.getElementById('timerDisplay').textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 
-      // Calculate degrees of remaining slice (360 deg = full ring, 0 deg = empty ring)
-      const pct = Math.max(0, (timerState.timeRemaining / timerState.totalDuration));
-      const degrees = pct * 360;
+      // Calculate degrees of elapsed time (0 deg = full ring, 360 deg = empty ring)
+      const pctRemaining = Math.max(0, (timerState.timeRemaining / timerState.totalDuration));
+      const degreesElapsed = (1 - pctRemaining) * 360;
 
-      // Update conic-gradient dynamically: background slice is blue from 0deg up to 'degrees', gray thereafter
+      // Update conic-gradient dynamically: gray background fills clockwise starting from 0deg (12 o'clock) up to 'degreesElapsed', blue stays for the remaining duration
       const conicRing = document.getElementById('timerConicRing');
-      conicRing.style.background = `conic-gradient(#2563eb ${degrees}deg, #f1f5f9 ${degrees}deg 360deg)`;
+      conicRing.style.background = `conic-gradient(#f1f5f9 0deg ${degreesElapsed}deg, #2563eb ${degreesElapsed}deg 360deg)`;
 
       const now = new Date();
       const endTime = new Date(now.getTime() + timerState.timeRemaining * 1000);
