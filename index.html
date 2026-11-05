@@ -144,11 +144,12 @@
         <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col items-center justify-center relative">
           
           <div class="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center my-auto">
-            <svg class="w-full h-full" viewBox="0 0 36 36">
-              <!-- Gray Track background -->
+            <!-- Rotated -90deg so 0 offset starts at 12:00 top center. Circumference is 100. -->
+            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+              <!-- Background gray circle -->
               <circle cx="18" cy="18" r="15.9155" fill="#ffffff" stroke="#f1f5f9" stroke-width="3" />
-              <!-- Blue ring starting at 12:00 top center and shrinking clockwise -->
-              <path id="timerPieArc" class="text-blue-600 transition-all duration-300" stroke-linecap="square" stroke-width="4" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" stroke-dasharray="100, 100" />
+              <!-- Blue active arc shrinking clockwise from 12 o'clock -->
+              <circle id="timerPieArc" cx="18" cy="18" r="15.9155" fill="none" class="text-blue-600 transition-all duration-300" stroke="currentColor" stroke-width="4" stroke-dasharray="100 100" stroke-dashoffset="0" stroke-linecap="round" />
             </svg>
             <div id="timerDisplay" class="absolute font-black text-4xl sm:text-5xl text-slate-900 tracking-tight">
               05:00
@@ -738,8 +739,12 @@
       document.getElementById('timerDisplay').textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 
       const pieArc = document.getElementById('timerPieArc');
-      const pct = Math.max(0, (timerState.timeRemaining / timerState.totalDuration) * 100);
-      pieArc.setAttribute('stroke-dasharray', `${pct}, 100`);
+      // Calculate remaining percentage (100 = full circle, 0 = empty)
+      const pct = Math.max(0, (timerState.timeRemaining / timerState.totalDuration));
+      
+      // Setting strokeDashoffset moves the gap cleanly starting from 12 o'clock clockwise
+      const strokeOffset = 100 * (1 - pct);
+      pieArc.setAttribute('stroke-dashoffset', strokeOffset);
 
       const now = new Date();
       const endTime = new Date(now.getTime() + timerState.timeRemaining * 1000);
