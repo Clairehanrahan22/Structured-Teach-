@@ -140,19 +140,18 @@
       <!-- 50/50 SPLIT SCREEN CONTAINER -->
       <div class="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch min-h-[450px]">
         
-        <!-- LEFT 1/2: LARGE VISUAL TIMER -->
+        <!-- LEFT 1/2: LARGE VISUAL TIMER (CONIC GRADIENT DRIVEN) -->
         <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col items-center justify-center relative">
           
           <div class="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center my-auto">
-            <!-- Rotated -90deg so 0 offset starts at 12:00 top center. Circumference is 100. -->
-            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-              <!-- Background gray circle -->
-              <circle cx="18" cy="18" r="15.9155" fill="#ffffff" stroke="#f1f5f9" stroke-width="3" />
-              <!-- Blue active arc shrinking clockwise from 12 o'clock -->
-              <circle id="timerPieArc" cx="18" cy="18" r="15.9155" fill="none" class="text-blue-600 transition-all duration-300" stroke="currentColor" stroke-width="4" stroke-dasharray="100 100" stroke-dashoffset="0" stroke-linecap="round" />
-            </svg>
-            <div id="timerDisplay" class="absolute font-black text-4xl sm:text-5xl text-slate-900 tracking-tight">
-              05:00
+            <!-- Outer Ring Element rendered with CSS Conic Gradient -->
+            <div id="timerConicRing" class="w-full h-full rounded-full transition-all duration-300 p-3 shadow-inner" style="background: conic-gradient(#f1f5f9 0deg, #2563eb 0deg 360deg);">
+              <!-- Inner White Mask to leave a clean ring border -->
+              <div class="w-full h-full bg-white rounded-full flex items-center justify-center shadow-xs">
+                <div id="timerDisplay" class="font-black text-4xl sm:text-5xl text-slate-900 tracking-tight">
+                  05:00
+                </div>
+              </div>
             </div>
           </div>
 
@@ -732,19 +731,19 @@
       return `<svg class="${sizeClass}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#64748b"/></svg>`;
     }
 
-    // TIMER DISPLAY & ACCURATE 12:00 TOP-STARTING CLOCKWISE SHRINKS
+    // TIMER DISPLAY DRIVEN BY CSS CONIC GRADIENT (STRICT 12:00 CLOCKWISE SHRINK)
     function updateTimerDisplay() {
       const mins = Math.floor(timerState.timeRemaining / 60);
       const secs = timerState.timeRemaining % 60;
       document.getElementById('timerDisplay').textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 
-      const pieArc = document.getElementById('timerPieArc');
-      // Calculate remaining percentage (100 = full circle, 0 = empty)
+      // Calculate degrees of remaining slice (360 deg = full ring, 0 deg = empty ring)
       const pct = Math.max(0, (timerState.timeRemaining / timerState.totalDuration));
-      
-      // Setting strokeDashoffset moves the gap cleanly starting from 12 o'clock clockwise
-      const strokeOffset = 100 * (1 - pct);
-      pieArc.setAttribute('stroke-dashoffset', strokeOffset);
+      const degrees = pct * 360;
+
+      // Update conic-gradient dynamically: background slice is blue from 0deg up to 'degrees', gray thereafter
+      const conicRing = document.getElementById('timerConicRing');
+      conicRing.style.background = `conic-gradient(#2563eb ${degrees}deg, #f1f5f9 ${degrees}deg 360deg)`;
 
       const now = new Date();
       const endTime = new Date(now.getTime() + timerState.timeRemaining * 1000);
