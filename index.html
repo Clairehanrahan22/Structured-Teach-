@@ -83,13 +83,6 @@
         <button onclick="playChime()" class="ml-1 px-1.5 py-0.5 bg-slate-200 hover:bg-slate-300 rounded text-slate-700 font-bold" title="Test Timer Sound">🔊</button>
       </div>
 
-      <!-- SMS NOTIFICATION INPUT (PERSISTENTLY SAVED) -->
-      <div class="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200 text-xs font-semibold">
-        <label for="smsPhoneInput" class="text-slate-500 px-1.5">Staff SMS:</label>
-        <input type="tel" id="smsPhoneInput" placeholder="15551234567" class="w-28 bg-transparent font-bold text-slate-700 outline-none px-1 text-[11px]" oninput="saveSmsNumber(this.value)">
-        <button onclick="testSmsNotification()" class="ml-1 px-1.5 py-0.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-[10px] font-extrabold" title="Send test SMS now">Test SMS</button>
-      </div>
-
       <div class="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200 text-xs font-semibold">
         <label for="periodSelect" class="text-slate-500 px-2">Class:</label>
         <select id="periodSelect" class="bg-transparent font-bold text-slate-700 outline-none cursor-pointer pr-2">
@@ -397,7 +390,6 @@
     let state = {
       isEditMode: false,
       activeSlotIndex: 0,
-      smsPhoneNumber: localStorage.getItem('cvs_sms_phone') || '',
       timeSlots: JSON.parse(localStorage.getItem('cvs_slots')) || DEFAULT_TIME_SLOTS,
       symbols: JSON.parse(localStorage.getItem('cvs_symbols')) || DEFAULT_SYMBOLS,
       students: JSON.parse(localStorage.getItem('cvs_students')) || DEFAULT_STUDENTS,
@@ -441,10 +433,6 @@
             if (data.timeSlots) state.timeSlots = data.timeSlots;
             if (data.symbols) state.symbols = data.symbols;
             if (data.students) state.students = data.students;
-            if (data.smsPhoneNumber !== undefined) {
-              state.smsPhoneNumber = data.smsPhoneNumber;
-              document.getElementById('smsPhoneInput').value = data.smsPhoneNumber;
-            }
             saveLocalState();
             if (state.isEditMode) renderEditView();
             else renderLiveView();
@@ -461,8 +449,7 @@
         firebaseDb.ref('classroomData').set({
           timeSlots: state.timeSlots,
           symbols: state.symbols,
-          students: state.students,
-          smsPhoneNumber: state.smsPhoneNumber
+          students: state.students
         });
       }
     }
@@ -471,12 +458,6 @@
       localStorage.setItem('cvs_slots', JSON.stringify(state.timeSlots));
       localStorage.setItem('cvs_symbols', JSON.stringify(state.symbols));
       localStorage.setItem('cvs_students', JSON.stringify(state.students));
-      localStorage.setItem('cvs_sms_phone', state.smsPhoneNumber);
-    }
-
-    function saveSmsNumber(val) {
-      state.smsPhoneNumber = val.trim();
-      saveState();
     }
 
     // PRINT FUNCTIONALITY
@@ -530,46 +511,6 @@
       } catch (e) {
         console.log('Audio playback auto-blocked');
       }
-    }
-
-    // AUTOMATIC SMS TEXT NOTIFICATION (Textbelt API)
-    function sendStaffSmsNotification(customMsg) {
-      if (!state.smsPhoneNumber) {
-        console.log('No phone number entered.');
-        return;
-      }
-
-      const activeSlot = state.timeSlots[state.activeSlotIndex];
-      const stationText = activeSlot ? activeSlot.label : 'Station rotation';
-      const msg = customMsg || `⏰ Classroom Timer Complete: ${stationText} has just finished!`;
-
-      fetch('https://textbelt.com/text', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: state.smsPhoneNumber,
-          message: msg,
-          key: 'textbelt'
-        })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          console.log('SMS sent successfully!');
-        } else {
-          console.log('SMS status:', data.message || data);
-        }
-      })
-      .catch(err => console.error('SMS Error:', err));
-    }
-
-    function testSmsNotification() {
-      if (!state.smsPhoneNumber) {
-        alert('Please enter a phone number first (e.g. 15551234567)');
-        return;
-      }
-      sendStaffSmsNotification('🔔 Test notification from Visual Classroom Timer!');
-      alert(`Test SMS sent to ${state.smsPhoneNumber}!`);
     }
 
     // MODE TOGGLE
@@ -772,7 +713,6 @@
             btn.textContent = 'Start';
             btn.classList.replace('bg-amber-600', 'bg-blue-600');
             playChime();
-            sendStaffSmsNotification();
           }
         }, 1000);
       }
@@ -802,7 +742,6 @@
         document.getElementById('startPauseBtn').textContent = 'Start';
       }
       playChime();
-      sendStaffSmsNotification();
     }
 
     function previousStation() {
@@ -1142,9 +1081,6 @@
     // INITIAL APP BOOTSTRAP
     window.onload = () => {
       initFirebase();
-      if (state.smsPhoneNumber) {
-        document.getElementById('smsPhoneInput').value = state.smsPhoneNumber;
-      }
       renderLiveView();
     };
   </script>
