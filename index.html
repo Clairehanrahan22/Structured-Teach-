@@ -83,10 +83,11 @@
         <button onclick="playChime()" class="ml-1 px-1.5 py-0.5 bg-slate-200 hover:bg-slate-300 rounded text-slate-700 font-bold" title="Test Timer Sound">🔊</button>
       </div>
 
-      <!-- SMS NOTIFICATION INPUT -->
+      <!-- SMS NOTIFICATION INPUT (PERSISTENTLY SAVED) -->
       <div class="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200 text-xs font-semibold">
         <label for="smsPhoneInput" class="text-slate-500 px-1.5">Staff SMS:</label>
-        <input type="tel" id="smsPhoneInput" placeholder="+15550000000" class="w-28 bg-transparent font-bold text-slate-700 outline-none px-1 text-[11px]" onchange="saveSmsNumber(this.value)">
+        <input type="tel" id="smsPhoneInput" placeholder="15551234567" class="w-28 bg-transparent font-bold text-slate-700 outline-none px-1 text-[11px]" oninput="saveSmsNumber(this.value)">
+        <button onclick="testSmsNotification()" class="ml-1 px-1.5 py-0.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-[10px] font-extrabold" title="Send test SMS now">Test SMS</button>
       </div>
 
       <div class="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200 text-xs font-semibold">
@@ -143,10 +144,11 @@
         <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col items-center justify-center relative">
           
           <div class="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center my-auto">
-            <!-- Rotated -90deg and flipped horizontally so the arc starts strictly at 12 o'clock and shrinks CLOCKWISE -->
-            <svg class="w-full h-full transform -rotate-90 -scale-x-100" viewBox="0 0 36 36">
+            <svg class="w-full h-full" viewBox="0 0 36 36">
+              <!-- Gray Track background -->
               <circle cx="18" cy="18" r="15.9155" fill="#ffffff" stroke="#f1f5f9" stroke-width="3" />
-              <circle id="timerPieArc" cx="18" cy="18" r="15.9155" fill="none" class="text-blue-600 transition-all duration-300" stroke="currentColor" stroke-width="4" stroke-dasharray="100, 100" stroke-dashoffset="0" />
+              <!-- Blue ring starting at 12:00 top center and shrinking clockwise -->
+              <path id="timerPieArc" class="text-blue-600 transition-all duration-300" stroke-linecap="square" stroke-width="4" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" stroke-dasharray="100, 100" />
             </svg>
             <div id="timerDisplay" class="absolute font-black text-4xl sm:text-5xl text-slate-900 tracking-tight">
               05:00
@@ -177,7 +179,7 @@
 
         </div>
 
-        <!-- RIGHT 1/2: SYMBOLS & STUDENT STATIONS -->
+        <!-- RIGHT 1/2: SYMBOLS & LARGER STUDENT STATIONS -->
         <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-center items-center overflow-y-auto">
           <div id="liveStationSymbolContainer" class="w-full flex justify-center items-stretch my-auto">
             <!-- Dynamic symbol columns render here -->
@@ -439,7 +441,10 @@
             if (data.timeSlots) state.timeSlots = data.timeSlots;
             if (data.symbols) state.symbols = data.symbols;
             if (data.students) state.students = data.students;
-            if (data.smsPhoneNumber) state.smsPhoneNumber = data.smsPhoneNumber;
+            if (data.smsPhoneNumber !== undefined) {
+              state.smsPhoneNumber = data.smsPhoneNumber;
+              document.getElementById('smsPhoneInput').value = data.smsPhoneNumber;
+            }
             saveLocalState();
             if (state.isEditMode) renderEditView();
             else renderLiveView();
@@ -486,7 +491,6 @@
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
 
         if (soundType === 'alarm') {
-          // Digital Beep Alarm
           for (let i = 0; i < 3; i++) {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
@@ -500,7 +504,6 @@
             osc.stop(ctx.currentTime + (i * 0.25) + 0.15);
           }
         } else if (soundType === 'bell') {
-          // School Bell
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
           osc.type = 'sawtooth';
@@ -512,7 +515,6 @@
           osc.start();
           osc.stop(ctx.currentTime + 1.5);
         } else {
-          // Gentle Chime
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
           osc.type = 'sine';
@@ -530,22 +532,44 @@
       }
     }
 
-    // AUTOMATIC SMS TEXT NOTIFICATION
-    function sendStaffSmsNotification() {
-      if (!state.smsPhoneNumber) return;
+    // AUTOMATIC SMS TEXT NOTIFICATION (Textbelt API)
+    function sendStaffSmsNotification(customMsg) {
+      if (!state.smsPhoneNumber) {
+        console.log('No phone number entered.');
+        return;
+      }
 
       const activeSlot = state.timeSlots[state.activeSlotIndex];
       const stationText = activeSlot ? activeSlot.label : 'Station rotation';
+      const msg = customMsg || `⏰ Classroom Timer Complete: ${stationText} has just finished!`;
 
-      // Example fetch call to an SMS webhook API (e.g., Twilio / AWS SNS / Zapier)
-      fetch('https://text-service-demo.free.beeceptor.com/send-sms', {
+      fetch('https://textbelt.com/text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          to: state.smsPhoneNumber,
-          message: `⏰ Classroom Timer Complete: ${stationText} has just finished!`
+          phone: state.smsPhoneNumber,
+          message: msg,
+          key: 'textbelt'
         })
-      }).catch(err => console.log('SMS dispatch simulated:', err));
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          console.log('SMS sent successfully!');
+        } else {
+          console.log('SMS status:', data.message || data);
+        }
+      })
+      .catch(err => console.error('SMS Error:', err));
+    }
+
+    function testSmsNotification() {
+      if (!state.smsPhoneNumber) {
+        alert('Please enter a phone number first (e.g. 15551234567)');
+        return;
+      }
+      sendStaffSmsNotification('🔔 Test notification from Visual Classroom Timer!');
+      alert(`Test SMS sent to ${state.smsPhoneNumber}!`);
     }
 
     // MODE TOGGLE
@@ -577,7 +601,7 @@
       }
     }
 
-    // LIVE VIEW RENDER
+    // LIVE VIEW RENDER WITH LARGER PICTURES & CENTERED NAMES UNDERNEATH
     function renderLiveView() {
       if (!state.timeSlots.length) {
         document.getElementById('liveStationNumHeader').textContent = "No Stations";
@@ -622,23 +646,21 @@
           if (symId === 'none') return; // Skip students who are off/gone
 
           allStudentCards += `
-            <div class="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm w-full">
-              <img src="${st.avatar}" class="w-12 h-12 rounded-full object-cover border-2 border-slate-100 shadow-sm">
-              <div>
-                <span class="font-extrabold text-sm text-slate-800 block">${st.name}</span>
-                ${st.note ? `<span class="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">${st.note}</span>` : ''}
-              </div>
+            <div class="flex flex-col items-center bg-white p-3 rounded-2xl border border-slate-200 shadow-sm w-full text-center">
+              <img src="${st.avatar}" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border-3 border-slate-100 shadow-md mb-2">
+              <span class="font-black text-base text-slate-800 tracking-tight leading-tight block">${st.name}</span>
+              ${st.note ? `<span class="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full mt-1 inline-block">${st.note}</span>` : ''}
             </div>
           `;
         });
 
         symbolContainer.innerHTML = `
-          <div class="flex flex-col items-center gap-4 w-full max-w-md">
+          <div class="flex flex-col items-center gap-4 w-full max-w-xl">
             <div class="p-4 rounded-3xl bg-slate-50 border border-slate-100 shadow-inner flex items-center justify-center">
               ${renderSymbolGraphic(checkInSymbol, 'w-16 h-16')}
             </div>
             <span class="text-base font-black text-slate-800 tracking-wide uppercase">${checkInSymbol ? checkInSymbol.name : 'Check-In'}</span>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full mt-1">
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 w-full mt-1">
               ${allStudentCards}
             </div>
           </div>
@@ -662,23 +684,21 @@
           let studentCards = '';
           assignedStudents.forEach(st => {
             studentCards += `
-              <div class="flex items-center gap-3 bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs w-full">
-                <img src="${st.avatar}" class="w-12 h-12 rounded-full object-cover border-2 border-slate-100 shadow-sm shrink-0">
-                <div class="overflow-hidden">
-                  <span class="font-extrabold text-sm text-slate-800 block truncate">${st.name}</span>
-                  ${st.note ? `<span class="text-[9px] font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded truncate inline-block">${st.note}</span>` : ''}
-                </div>
+              <div class="flex flex-col items-center bg-white p-3 rounded-2xl border border-slate-200 shadow-sm w-full text-center">
+                <img src="${st.avatar}" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border-3 border-slate-100 shadow-md mb-2">
+                <span class="font-black text-base text-slate-800 tracking-tight leading-tight block">${st.name}</span>
+                ${st.note ? `<span class="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full mt-1 inline-block">${st.note}</span>` : ''}
               </div>
             `;
           });
 
           colsHTML += `
-            <div class="flex-1 bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col items-center gap-2.5 max-w-xs shadow-2xs">
+            <div class="flex-1 bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col items-center gap-3 min-w-[170px] max-w-xs shadow-2xs">
               <div class="p-3 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-center">
                 ${renderSymbolGraphic(symObj, 'w-10 h-10')}
               </div>
               <span class="text-xs font-black text-slate-800 uppercase tracking-wide text-center">${symObj.name}</span>
-              <div class="w-full flex flex-col gap-2 mt-1">
+              <div class="w-full flex flex-col gap-2.5 mt-1">
                 ${studentCards}
               </div>
             </div>
@@ -711,7 +731,7 @@
       return `<svg class="${sizeClass}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#64748b"/></svg>`;
     }
 
-    // TIMER DISPLAY & ACCURATE TOP-STARTING SHRINKS
+    // TIMER DISPLAY & ACCURATE 12:00 TOP-STARTING CLOCKWISE SHRINKS
     function updateTimerDisplay() {
       const mins = Math.floor(timerState.timeRemaining / 60);
       const secs = timerState.timeRemaining % 60;
