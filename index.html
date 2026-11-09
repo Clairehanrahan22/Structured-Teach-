@@ -615,10 +615,19 @@
           activeAssignments[symId].push(student);
         });
 
-        const usedSymbolIds = Object.keys(activeAssignments);
-        
+        // FIXED LEFT-TO-RIGHT STATION ORDER:
+        // Teacher Table (green star), Para Station (blue triangle),
+        // Individual Work (red circle). Keep these columns visible even
+        // when no students are assigned to one of them during a rotation.
+        // Additional custom symbols, if used, appear after these three.
+        const fixedStationIds = ['sym-teacher', 'sym-para', 'sym-ind'];
+        const extraSymbolIds = Object.keys(activeAssignments).filter(
+          id => !fixedStationIds.includes(id)
+        );
+        const orderedSymbolIds = [...fixedStationIds, ...extraSymbolIds];
+
         let colsHTML = '';
-        usedSymbolIds.forEach(symId => {
+        orderedSymbolIds.forEach(symId => {
           const symObj = state.symbols.find(s => s.id === symId) || state.symbols[1];
           const assignedStudents = activeAssignments[symId] || [];
 
@@ -646,7 +655,7 @@
           `;
         });
 
-        symbolContainer.innerHTML = colsHTML ? `<div class="flex flex-wrap justify-center items-stretch gap-4 w-full">${colsHTML}</div>` : `<div class="text-xs font-bold text-slate-400">No students scheduled for this station</div>`;
+        symbolContainer.innerHTML = `<div class="flex flex-wrap justify-center items-stretch gap-4 w-full">${colsHTML}</div>`;
       }
 
       timerState.totalDuration = activeSlot.durationSec;
